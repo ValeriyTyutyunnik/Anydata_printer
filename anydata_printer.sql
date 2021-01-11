@@ -222,7 +222,6 @@ create or replace package body anydata_printer is
                      order by ata.attr_no)
         loop
           l_type_struct.attrs.extend;
-          l_type_struct.attrs(l_type_struct.attrs.count) := t_object_attr_rec();
           l_type_struct.attrs(l_type_struct.attrs.count).attr_name := rec.attr_name;
           l_type_struct.attrs(l_type_struct.attrs.count).attr_desc.type_owner := rec.attr_type_owner;
           l_type_struct.attrs(l_type_struct.attrs.count).attr_desc.type_name := rec.attr_type_name;
@@ -580,7 +579,7 @@ is
         end if;
       end loop;
 
-      l_sql := l_sql || '  l_str := '')'';
+      l_sql := l_sql || '  l_str := lpad('' '', p_offset) || '')'';
   dbms_lob.writeappend(p_result, length(l_str), l_str);
 exception
   when others then
@@ -607,8 +606,6 @@ end;';
   is
     l_type_fullname    varchar2(300 char);
     l_type_struct      t_type_struct;
-    l_elem_type_struct t_type_struct;
-    l_sql              varchar2(32767);
     l_str              varchar2(1000);
   begin
     if p_anydata is null then
