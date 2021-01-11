@@ -501,9 +501,11 @@ is
   end if;' || chr(10) || chr(10);
 
         if i < p_type_struct.attrs.count then
-          l_sql := l_sql || '  l_str := '','' || chr(10);
-  dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10);
+          l_sql := l_sql || '  l_str := '','' || chr(10);' || chr(10);
+        else
+          l_sql := l_sql || '  l_str := chr(10);' || chr(10);
         end if;
+        l_sql := l_sql || '  dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10);
 
         -- object type
         elsif p_type_struct.attrs(i).attr_desc.type_owner is not null then
@@ -540,9 +542,11 @@ is
   end if;' || chr(10) || chr(10);
 
           if i < p_type_struct.attrs.count then
-            l_sql := l_sql || '  l_str := '','' || chr(10);
-  dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10);
+            l_sql := l_sql || '  l_str := '','' || chr(10);' || chr(10);
+          else
+            l_sql := l_sql || '  l_str := chr(10);' || chr(10);
           end if;
+          l_sql := l_sql || '  dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10);
 
         --base types
         else
@@ -757,6 +761,7 @@ end;';
     dbms_lob.createtemporary(l_clob, true);
     convert_anydata_to_clob(p_anydata, l_clob);
     print_clob(l_clob);
+    dbms_lob.freetemporary(l_clob);
   end prn_anydata;
 
 end anydata_printer;
