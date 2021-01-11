@@ -481,6 +481,12 @@ is
     dbms_lob.writeappend(p_result, length(l_str), l_str);
     return;
   end if;
+  
+  if l_object is null then
+    l_str := ''null'' || chr(10);
+    dbms_lob.writeappend(p_result, length(l_str), l_str);
+    return;
+  end if;
 
   l_str := ''' || lower(p_type_fullname) || '('' || chr(10);
   dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10) || chr(10);
