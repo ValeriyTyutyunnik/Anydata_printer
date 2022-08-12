@@ -1,5 +1,5 @@
 # Anydata_printer
-Pl/SQL package to print the contents of any schema-level object/collection using anydata object
+PL/SQL package to print the contents of any schema-level object/collection using anydata object
 
 ## Introduction
 
