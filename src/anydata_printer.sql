@@ -1,4 +1,6 @@
-create or replace package anydata_printer is
+create or replace package anydata_printer
+-- authid current_user
+is
 
   /*
     MIT License
@@ -163,8 +165,6 @@ create or replace package body anydata_printer is
       end if;
     end if;
 
-    l_res := lower(l_res);
-
     return l_res;
   end get_attr_datatype;
 
@@ -174,9 +174,7 @@ create or replace package body anydata_printer is
                         p_clob    in out nocopy clob)
   is
   begin
-
     execute immediate p_sql using in p_anydata, in p_offset, in out p_clob;
-
   end execute_sql;
 
   procedure fill_type_struct(p_type_fullname varchar2)
@@ -222,7 +220,11 @@ create or replace package body anydata_printer is
                      order by ata.attr_no)
         loop
           l_type_struct.attrs.extend;
-          l_type_struct.attrs(l_type_struct.attrs.count).attr_name := rec.attr_name;
+          if rec.attr_name = upper(rec.attr_name) then
+            l_type_struct.attrs(l_type_struct.attrs.count).attr_name := rec.attr_name;
+          else
+            l_type_struct.attrs(l_type_struct.attrs.count).attr_name := '"'||rec.attr_name||'"';
+          end if;
           l_type_struct.attrs(l_type_struct.attrs.count).attr_desc.type_owner := rec.attr_type_owner;
           l_type_struct.attrs(l_type_struct.attrs.count).attr_desc.type_name := rec.attr_type_name;
           l_type_struct.attrs(l_type_struct.attrs.count).attr_desc.length := rec.length;
@@ -291,7 +293,7 @@ create or replace package body anydata_printer is
                       p_offset in integer,
                       p_result in out nocopy clob)
   is
-    l_collection '|| lower(p_type_fullname) ||';
+    l_collection '|| p_type_fullname ||';
     l_index number' || /* assotiative array by varchar2 can not be object collection */ ';
     l_value_char varchar2(32767);
     l_value ' || get_attr_datatype(p_type_struct.elem_desc) || ';
@@ -310,14 +312,14 @@ create or replace package body anydata_printer is
       dbms_lob.writeappend(p_result, length(l_str), l_str);
       return;
     elsif l_collection.count = 0 then
-      l_str := ''' || lower(p_type_fullname) || '()'';
+      l_str := ''' || p_type_fullname || '()'';
       dbms_lob.writeappend(p_result, length(l_str), l_str);
       return;
     end if;
 
     l_index := l_collection.first;
 
-    l_str := ''' || lower(p_type_fullname) || '('' || chr(10) || lpad('' '', p_offset + 2);
+    l_str := ''' || p_type_fullname || '('' || chr(10) || lpad('' '', p_offset + 2);
     dbms_lob.writeappend(p_result, length(l_str), l_str);
 
     loop
@@ -446,14 +448,23 @@ end;';
   is
     l_sql              varchar2(32767);
     l_str              varchar2(32767);
+    l_type_name        varchar2(300);
+    l_point            number;
     l_elem_type_struct t_type_struct;
   begin
+    l_point := instr(p_type_fullname, '.');
+    l_type_name := substr(p_type_fullname, l_point+1);
+    if l_type_name <> upper(l_type_name) then
+      l_type_name := '"' || l_type_name || '"';
+    end if;
+    l_type_name := substr(p_type_fullname, 1, l_point-1) || '.' || l_type_name;
+    debug('prn_object.l_type_name='||l_type_name);
     if p_type_struct.attrs is null then
       l_str := 'null';
       dbms_lob.writeappend(p_clob, length(l_str), l_str);
       return;
     elsif p_type_struct.attrs.count = 0 then
-      l_str := lower(p_type_fullname) || '()';
+      l_str := l_type_name || '()';
       dbms_lob.writeappend(p_clob, length(l_str), l_str);
       return;
     end if;
@@ -467,7 +478,7 @@ procedure generated(p_data   in sys.anydata,
                     p_offset in integer,
                     p_result in out nocopy clob)
 is
-  l_object ' || lower(p_type_fullname) || ';
+  l_object ' || l_type_name || ';
   l_str varchar2(32767);
   l_value_char varchar2(32767);' || chr(10);
     for i in 1 .. p_type_struct.attrs.count loop
@@ -477,28 +488,28 @@ is
     end loop;
     l_sql := l_sql || 'begin
   if p_data.getObject(l_object) <> dbms_types.success then
-    l_str := ''Geting object ' || lower(p_type_fullname) || ' from anydata was unsuccessfull'' || chr(10);
+    l_str := ''Geting object ' || l_type_name || ' from anydata was unsuccessfull'' || chr(10);
     dbms_lob.writeappend(p_result, length(l_str), l_str);
     return;
   end if;
-  
+
   if l_object is null then
     l_str := ''null'' || chr(10);
     dbms_lob.writeappend(p_result, length(l_str), l_str);
     return;
   end if;
 
-  l_str := ''' || lower(p_type_fullname) || '('' || chr(10);
+  l_str := ''' || l_type_name || '('' || chr(10);
   dbms_lob.writeappend(p_result, length(l_str), l_str);' || chr(10) || chr(10);
 
       for i in 1 .. p_type_struct.attrs.count loop
         -- anydata type
         if p_type_struct.attrs(i).attr_desc.type_owner in ('SYS', 'PUBLIC') and p_type_struct.attrs(i).attr_desc.type_name = 'ANYDATA' then
 
-          l_sql := l_sql || '  l_str := lpad('' '', p_offset+2) || ''' || lower(p_type_struct.attrs(i).attr_name) || ' => '';
-  if l_object.' || lower(p_type_struct.attrs(i).attr_name) || ' is not null then
+          l_sql := l_sql || '  l_str := lpad('' '', p_offset+2) || ''' || p_type_struct.attrs(i).attr_name || ' => '';
+  if l_object.' || p_type_struct.attrs(i).attr_name || ' is not null then
     dbms_lob.writeappend(p_result, length(l_str), l_str);
-    anydata_printer.convert_anydata_to_clob(p_anydata => l_object.' || lower(p_type_struct.attrs(i).attr_name) || ',
+    anydata_printer.convert_anydata_to_clob(p_anydata => l_object.' || p_type_struct.attrs(i).attr_name || ',
                                             p_clob    => p_result,
                                             p_offset  => p_offset + 2);
   else
@@ -536,10 +547,10 @@ is
               continue;
           end;
 
-            l_sql := l_sql || '  l_str := lpad('' '', p_offset+2) || ''' || lower(p_type_struct.attrs(i).attr_name) || ' => '';
-  if l_object.' || lower(p_type_struct.attrs(i).attr_name) || ' is not null then
+            l_sql := l_sql || '  l_str := lpad('' '', p_offset+2) || ''' || p_type_struct.attrs(i).attr_name || ' => '';
+  if l_object.' || p_type_struct.attrs(i).attr_name || ' is not null then
     dbms_lob.writeappend(p_result, length(l_str), l_str);
-    anydata_printer.convert_anydata_to_clob(p_anydata => sys.anydata.convert' ||lower(l_elem_type_struct.typecode) || '(l_object.' || lower(p_type_struct.attrs(i).attr_name) || '),
+    anydata_printer.convert_anydata_to_clob(p_anydata => sys.anydata.convert' || l_elem_type_struct.typecode || '(l_object.' || p_type_struct.attrs(i).attr_name || '),
                                             p_clob    => p_result,
                                             p_offset  => p_offset + 2);
   else
@@ -556,7 +567,7 @@ is
 
         --base types
         else
-          l_sql := l_sql || '  l_value_' || i || ' := l_object.' || lower(p_type_struct.attrs(i).attr_name) || ';
+          l_sql := l_sql || '  l_value_' || i || ' := l_object.' || p_type_struct.attrs(i).attr_name || ';
   if l_value_' || i || ' is not null then' || chr(10);
 
         if p_type_struct.attrs(i).attr_desc.type_name = 'VARCHAR2' then
@@ -593,7 +604,7 @@ is
   dbms_lob.writeappend(p_result, length(l_str), l_str);
 exception
   when others then
-    l_str := ''Error while printing object with type=' || lower(p_type_fullname) || '. Err='' || dbms_utility.format_error_stack || chr(10);
+    l_str := ''Error while printing object with type=' || l_type_name || '. Err='' || dbms_utility.format_error_stack || chr(10);
     dbms_lob.writeappend(p_result, length(l_str), l_str);
 end generated;
 
@@ -661,7 +672,7 @@ end;';
 
   exception
     when others then
-      l_str := 'Type '||l_type_fullname||' can not be printed. Err='||sqlerrm;
+      l_str := 'Type '||l_type_fullname||' can not be printed. Err='||dbms_utility.format_error_stack||';'||dbms_utility.format_error_backtrace;
       dbms_lob.writeappend(p_clob, length(l_str), l_str);
   end prn_type;
 
